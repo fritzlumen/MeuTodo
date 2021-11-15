@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace MeuTodo.Controllers
@@ -14,16 +15,31 @@ namespace MeuTodo.Controllers
     public class TodoController : ControllerBase
     {
         [HttpGet]
-        [Route("todos")]
+        [Route("todos/skip/{skip:int}/take/{take:int}")]
         public async Task<IActionResult> GetAsync(
-            [FromServices] AppDbContext context)
+            [FromServices] AppDbContext context,
+            [FromRoute]int skip = 0,
+            [FromRoute]int take = 25)
         {
+            if (take > 1000)
+                return BadRequest();
+
+            var total = await context.Todos.CountAsync();
+
             var todos = await context
                 .Todos
                 .AsNoTracking()
+                .Skip(skip)
+                .Take(take)
                 .ToListAsync();
 
-            return Ok(todos);
+            return Ok(new
+            {
+                total,
+                skip,
+                take,
+                data = todos
+            });
         }
 
         [HttpGet]
@@ -119,6 +135,25 @@ namespace MeuTodo.Controllers
                 return BadRequest();
             }
 
+        }
+        [HttpGet("todos/load")]
+        public async Task<IActionResult> LoadAsync(
+            [FromServices] AppDbContext context)
+        {
+            for (int i = 0; i < 1500; i++)
+            {
+                var todo = new ToDo()
+                {
+                    Id = i + 1,
+                    Done = false,
+                    Date = DateTime.Now,
+                    Title = $"Tarefa {i}"
+                };
+                await context.Todos.AddAsync(todo);
+                await context.SaveChangesAsync();
+            }
+
+            return Ok();
         }
     }
 
